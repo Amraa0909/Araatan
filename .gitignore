@@ -1,0 +1,12 @@
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock (хэрэв та application биш, library хөгжүүлж байгаа бол)
+# Cargo.lock
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -1,0 +1,652 @@
+# ARAATAN v0.6.1
+
+> **Adaptive Risk-Aware Algorithmic Trading System**
+> Multi-symbol, multi-model, regime-aware automated trading engine for **XAUUSD** & **USDJPY** on **M5**, powered by **zsfm-rs** (GGUF Q8_0 + Candle).
+
+---
+
+## 📌 Тойм
+
+ARAATAN нь хоёр forecasting модель (Chronos-2, Toto-2) + нэг meta-classifier (TabICL v2) + дүрэмд суурилсан risk/execution давхаргыг нэгтгэсэн, өөрөө адаптацлагдах, audit-тай арилжааны систем юм. Бүх ML inference нь **zsfm-rs**-ээр дамжуулан **GGUF Q8_0** форматтай, **candle** backend дээр ажиллана. Python, PyTorch, ONNX шаардлагагүй.
+
+| Параметр | Утга |
+|---|---|
+| Хувилбар | 0.6.1 |
+| Симболууд | XAUUSD, USDJPY |
+| Timeframe | **M5** (300,000 ms/bar) |
+| Bars/day | 288 |
+| Warmup | 600 бар = 50 цаг |
+| Model runtime | **zsfm-rs** (candle) |
+| Quantization | **Q8_0** (block-32) |
+| Live inference | 600 ms/bar = **0.20%** of bar |
+| Rust MSRV | 1.78.0 |
+| Режим | `live`, `backtest` |
+
+**Quote → Account хөрвүүлэлт**
+
+| Симбол | Харьцаа |
+|---|---|
+| XAUUSD | `1.0` |
+| USDJPY | `1 / current_USDJPY_mid` |
+
+---
+
+## 🎯 zsfm-rs — Model Runtime
+
+Бүх ML модель нь **zsfm-rs**-ийн бит-яг (bit-exact) хэрэгжүүлэлтээр ажиллана:
+
+| Модель | zsfm crate | GGUF | Size | Trait |
+|---|---|---|---|---|
+| **Chronos-2** | `zsfm-chronos` | `chronos-2-Q8_0.gguf` | ~420 MB | `Forecaster` |
+| **Toto-2** | `zsfm-toto` | `toto-2-Q8_0.gguf` | ~260 MB | `Forecaster` |
+| **TabICL v2** | `zsfm-tabicl` | `tabicl-Q8_0.gguf` | ~180 MB | `Classifier` |
+
+- **Repo:** `https://github.com/Amraa0909/zsfm-rs` (upstream: `amaye15/zsfm-rs`)
+- **License:** Apache-2.0
+- **Backend:** `candle-core` 0.11 (CPU / CUDA / Metal)
+- **Bit-exact:** ~1e-6 vs original PyTorch checkpoint
+
+### Q8_0 — Яагаад?
+
+| Хувилбар | Хэмжээ | Алдаа | Тайлбар |
+|---|---|---|---|
+| Q4_K_M | ~215 MB | ~1e-3 | Хэт алдаатай |
+| Q5_K_M | ~330 MB | ~1e-4 | Дунд |
+| **Q8_0** | **~860 MB** | **~1e-6** | **Bit-exact** ✅ |
+
+Q8_0 нь 4× том боловч M5-ийн цагийн бюджет (300,000 ms/bar) бүрэн багтана. Q8_K-г сонголтоор дэмжинэ.
+
+---
+
+## 🏗 Архитектурын урсгал
+
+```
+Raw bars (600 × M5) ────────────────────────────────────┐
+   │                                                    │
+   ▼                                                    │
+L1   Feature Engineering (52)                           │
+L1_5 Market Context (33)                                │
+L1_6 Dynamic Parameters                                 │
+L1_7a Feature Selector                                  │
+   │                                                    │
+   ├──► L2A Chronos-2 (zsfm, Q8_0, 21 quantile)          │
+   └──► L2B Toto-2    (zsfm, Q8_0, 9 quantile)           │
+                │                                       │
+                ▼                                       │
+        L3 Evidence Pooling (6 items)                   │
+                ▼                                       │
+        L4 TabICL v2 Meta-Learner (zsfm, Q8_0)          │
+                ▼                                       │
+        L4_5 Setup Generator + Portfolio Arbiter        │
+                ▼                                       │
+        L4_7 Trigger Engine                             │
+                ▼                                       │
+        L5 Execution & Risk                             │
+                ▼                                       │
+        L6 Position Manager                             │
+                ▼                                       │
+        L7 Storage & Audit  ◄───────────────────────────┘
+        L4_6 Interpretation (advisory only)
+```
+
+---
+
+## 📚 Давхаргын тодорхойлолт
+
+### L1 — Feature Engineering (52 шинж)
+
+| Бүлэг | Тоо | Шинжүүд |
+|---|---|---|
+| XAU | 15 | log_return, range, body, upper/lower_wick, rsi_14, macd_hist, atr_norm, vwap_dist, bb_width, stoch_k, obv_slope, mfi_14, cci_20, roc_10 |
+| JPY | 15 | (XAU-тай ижил) |
+| Cross | 5 | corr_50, corr_20, dxy_return, yield_10y_change, risk_on_off |
+| Candle | 17 | doji, hammer, shooting_star, engulf_bull/bear, harami, morning/evening_star, pin, inside/outside_bar, three_white/black, tweezer, marubozu |
+
+### L1_5 — Market Context (33 шинж)
+
+- **Regime (4):** Trending / Ranging / Volatile / Calm — softmax + 20 бар hysteresis (100 мин)
+- **Trend (5):** trend_strength, slope_20, slope_50, ema_align, adx_14
+- **SR (5):** dist_to_nearest_sr, sr_strength, sr_side, sr_count_50, sr_age
+- **Session (6):** Tokyo, London, NY, Tokyo-London, London-NY, Off-hours *(UTC+DST+баяр; off-hours 20:00–00:00 UTC)*
+- **Chart (13):** hh, hl, lh, ll, bos_bull/bear, choch_bull/bear, fvg_count, ob_count, trendline_dist, wedge_flag, triangle_flag
+
+### L1_6 — Dynamic Parameters (M5)
+
+Volatility-аас хамаарсан адаптив параметрүүд:
+
+```
+f(vol) = clamp(1 + 0.6 * (vol_pct - 0.5), 0.85, 1.15)
+vol_pct = ATR(14) percentile over 100 bars
+```
+
+| Параметр | M5 Утга | Цаг |
+|---|---|---|
+| entry_thr_buy | `0.55 * f(vol)` | — |
+| entry_thr_sell | `0.45 * f(vol)` | — |
+| cancel_thr_buy | `0.40 * f(vol)` | — |
+| cancel_thr_sell | `0.60 * f(vol)` | — |
+| atr_mult | `2.5 * f(vol)` | — |
+| risk_pct | `1.0% * f(vol)` | — |
+| max_loss | `1.0%` | — |
+| partial_levels | `[1R, 2R, 3R]` | — |
+| partial_pcts | `[50%, 30%, 20%]` | — |
+| breakeven_at | `1.5R` | — |
+| chandelier_mult | `3.0 * ATR(14)` | — |
+| cooldown_bars | `4` | 20 мин |
+| expire_bars | `8` | 40 мин |
+| **time_exit_bars** | `96` | **8 цаг** ⚠️ |
+| conf_min | `0.55` | — |
+| min_edge | `0.05` | — |
+| max_concurrent | `2` | — |
+| daily_dd_limit | `5%` | reset 00:00 UTC |
+| weekly_dd_limit | `10%` | reset Mon 00:00 UTC |
+
+> ⚠️ **`time_exit_bars=96`** нь M5-д 8 цаг (M15-д 24 цаг байсан). 24 цаг хадгалахыг хүсвэл **`288`** болго.
+
+**Корреляцийн хамгаалалт (XAUUSD ↔ USDJPY, window=50):**
+
+| Дүрэм | Утга | Үйлдэл |
+|---|---|---|
+| corr_block | `> 0.40` | Ижил чиглэлийн 2 позиц хориглох |
+| corr_exit | `< -0.20` (хэт сулрах) | Setup цуцлах |
+
+**Kill switch:**
+```
+(consec_losses >= 5) OR (count(|P_up - 0.5| < 0.03 AND conf < 0.40, last 20 bars) >= 15)
+```
+
+### L1_7a — Feature Selector
+
+| Хэрэглэгч | Тоо | Агуулга |
+|---|---|---|
+| **Chronos in** | 24 | 5 target (logret_ohlcv) + 19 past_cov (XAU 10, JPY 4, Cross 5) |
+| **Toto in** | 12 | XAU raw (5) + JPY raw (5) + corr (2) |
+| **TabICL static** | 15 | 10 ctx_sel (regime 4, trend, sr, session 4) + 5 dyn_lagged (20 бар lag) |
+
+**Session mapping (onehot):**  
+`Tokyo-London → London`, `London-NY → NY` *(хожуу идэвхтэй session давамгайлна)*
+
+### L2A — Chronos-2 (zsfm-chronos, Q8_0)
+
+- **Оролт:** `512 × 5` (log-return) + `512 × 19` (past_cov)
+- **Квантил:** `np.linspace(0.01, 0.99, 21)`
+- **pred_length:** 1
+- **Гаралт:**
+  - `p_up_chronos = 1 - CDF_logret(0)`
+  - `conf_chronos = 1 - (q90 - q10) / (q95 - q05 + ε)`
+  - `chronos_out`: 10 талбар (median, q05/q25/q75/q95, spread, dir_flag г.м.)
+- **Денормализац:** `q_price = last_close * exp(q_zscore * sigma_ret)`
+
+### L2B — Toto-2 (zsfm-toto, Q8_0)
+
+- **Оролт:** `96 × 12` (raw price)
+- **Квантил:** `[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]`
+- **pred_length:** 1
+- **Гаралт:**
+  - `p_up_toto = 1 - linear_interp(CDF, last_close)`
+  - `conf_toto = 1 - (q80 - q20) / (q90 - q10 + ε)`
+  - `toto_out`: 9 талбар (XAU/JPY медиан, corr, q10/q90 г.м.)
+
+### L3 — Evidence Pooling
+
+**6 нотолгоо:** `p_chronos`, `p_toto`, `candle_pattern`, `chart_pattern`, `momentum_group`, `structure_group`
+
+- **momentum_group** = `softAND(RSI, MACD, CCI, ROC, MFI; w)`
+- **structure_group** = `softAND(SR_prox, corr_cross, ADX, VWAP; w)`
+- `softAND = ∏ x_i^w_i`, `Σ w_i = 1`
+
+**Сонголтын логик (pairwise corr-аас хамаарна):**
+
+| Corr | Арга |
+|---|---|
+| `< 0.30` | **Noisy-OR** |
+| `0.30 – 0.60` | **Log-odds** |
+| `> 0.60` | **Soft-AND** |
+
+**Гаралт:** `P_pool`, `evidence_weights` (6), `pooling_method_used`, `agree_flag`
+
+### L4 — TabICL v2 Meta-Learner (zsfm-tabicl, Q8_0)
+
+- **Оролт (42):** `P_pool` (1) + evidence (6) + agree (1) + tabicl_static (15) + chronos_out (10) + toto_out (9)
+- **Support set:** симбол тус бүр 300 жишээ, sliding, horizon=10 (50 мин), **triple-barrier ±2·ATR**
+- **Класс:** Up / Down / Neutral
+- **Гаралт:**
+  - `P_up = P(Up) + 0.5 · P(Neutral)`
+  - `confidence = 1 - P(Neutral)`
+
+**Cold-start:**
+
+| Үе | Support | P_up | Conf |
+|---|---|---|---|
+| Stage 0 | `[0, 100)` | `P_pool` | `0` |
+| Stage 1 | `[100, 300)` | `w·P_pool + (1-w)·P_tabicl`, `w = max(0, (300-support)/200)` | `min(1, support/300)` |
+| Stage 2 | `[300, ∞)` | `P_tabicl` | `P_tabicl_conf` |
+
+**Refit trigger:** `(every 50 bars = 250 мин) OR (Sharpe(20) < 0.5 AND closed_trades >= 5)`
+
+### L4_6 — Interpretation (advisory only, gate = false)
+
+- **Agreement score:** `1 - std(p_vec) / 0.5` (p_vec = chronos, toto, tabicl)
+- **Conflict flags:** direction / confidence (> 0.30) / regime
+- **Counterfactual:** feature, delta_needed, effect_on_P_up
+- **Narrative:** Jinja2, `reason_code` enum: `trend_continuation`, `range_rejection`, `breakout_confirmed`, `liquidity_sweep`, `momentum_divergence`, `structure_break`
+- **Scenario:** bull / base / bear (Chronos+Toto квантилаас)
+
+### L4_5 — Setup Generator & Portfolio Arbiter
+
+**Gate:**
+
+| Нөхцөл | Үйлдэл |
+|---|---|
+| Cold start stage 0 | → хоосон |
+| Cold start stage 1 | → зөвшөөрөх, `size_multiplier = 0.5` |
+| `conf < conf_min` | → хоосон |
+| `abs(P_up - 0.5) < min_edge` | → хоосон |
+| Daily/Weekly DD хэтэрсэн | → хоосон |
+| Kill switch | → хоосон |
+
+**Entry zone:**
+- Primary: `[q25_toto, q75_toto]` — `linear_interp(toto_quantiles, 0.25/0.75)`
+- Cross-check: `[q25_chronos, q75_chronos]`
+- **Shrink rule:** `|median_toto - median_chronos| > 1.5·ATR` бол огтлолцол авна
+
+**Initial SL:** `entry_zone_far ∓ atr_mult·ATR(14)`  
+**Precheck:** `sl_distance ≥ stop_level + spread_avg`
+
+**Trigger set (regime-conditional):**
+
+| Regime | Triggers |
+|---|---|
+| Trending | Breakout(BB/SR), Retest(SR), Momentum(RSI>65+MACD>0), Structure(BOS) |
+| Ranging | ZoneTouch(SR±0.2·ATR), Momentum, CandleClose |
+| Volatile | Breakout, VolumeSpike(>2σ), SpreadNormalize(<1.5·avg) |
+| Calm | Breakout, TimeWindow(session_open±30min), CandleClose |
+
+**Partial policy:**
+- `lot < 4 × lot_min` → `FULL_TO_3R`
+- Үгүй бол → `SPLIT_50_30_20`
+
+**Arbiter:**
+- Симбол тус бүр 1 slot, нийт `max_concurrent = 2`
+- Priority = `|P_up - 0.5| × conf`
+- Cross guard: `corr_50 > 0.40` бол ижил чиглэлийн 2 позиц хориглох
+- Tie-break: `XAUUSD > USDJPY`
+
+**State machine:** `IDLE → ARMED → TRIGGERED | EXPIRED | CANCELLED`
+
+### L4_7 — Trigger Engine
+
+**Logic:** OR (эхний биелсэн trigger)
+
+**Cancel rules:**
+- `P_up < cancel_thr_buy` (buy) / `P_up > cancel_thr_sell` (sell)
+- Regime өөрчлөгдсөн (20 бар hysteresis)
+- `corr_50(XAUUSD, USDJPY) > -0.20` — 2 бар дараалан
+- `ATR(t) / ATR(t-20) ∉ [0.5, 1.5]`
+
+**Fill price:**
+
+| Trigger төрөл | Томьёо |
+|---|---|
+| Market (Breakout, Momentum, VolumeSpike, BOS) | `next_open + half_spread + slippage` |
+| Limit (ZoneTouch, Retest, SR) | `trigger_price + half_spread + slippage` |
+
+Slippage нь `max_slippage`-ээр хязгаарлагдана.
+
+### L5 — Execution & Risk
+
+```
+eff_risk_pct = min(risk_pct, max_loss)
+risk_amount  = balance × eff_risk_pct
+lot_size     = risk_amount / (sl_distance × contract × quote_to_acct[symbol])
+lot_size     = round_down(lot_size, lot_step)
+lot_size     = min(lot_size, lot_max)
+lot_size_final = round_down(lot_size × size_multiplier, lot_step)
+```
+
+**Шалгалт:**
+- `lot_size_final ≥ lot_min`
+- `free_margin ≥ required_margin + margin_buffer`
+- `sl_distance ≥ stop_level`
+
+**Order send:** `retry=3`, `interval=500ms`, `dev_cap=max_slippage`, fail → `CANCELLED`
+
+### L6 — Position Manager
+
+**SPLIT_50_30_20:**
+
+| R-level | Үйлдэл |
+|---|---|
+| 1R | 50% хаах |
+| 1.5R | SL → BE |
+| 2R | 30% хаах |
+| 3R | 20% хаах + trail |
+
+**FULL_TO_3R:**
+
+| R-level | Үйлдэл |
+|---|---|
+| 1.5R | SL → BE |
+| 3R | Exit эсвэл trail |
+
+**Trailing:** ATR + Chandelier (`3.0 × ATR`)
+
+**Exit conditions:**
+- Structure break (BOS/CHOCH эсрэг)
+- SR touch: `dist ≤ 0.2·ATR(14)`
+- Time exit: `bars_since_entry ≥ 96` (8 цаг at M5)
+
+### L7 — Storage & Audit
+
+| Хүснэгт | Гол багана |
+|---|---|
+| `raw_bars` | symbol, ts, OHLCV, timeframe |
+| `enriched_bars` | symbol, ts, features_json |
+| `market_context` | symbol, ts, regime, trend/sr/session/chart_json |
+| `dynamic_params` | symbol, ts, params_json |
+| `decisions` | decision_id, symbol, ts, p_up, confidence, cold_start_stage, support_hash, interpretation_json |
+| `setups` | setup_id, symbol, direction, entry_zone, initial_sl, status |
+| `setup_events` | event_id, setup_id, event_type, fill_price, slippage |
+| `orders` | order_id, setup_id, ticket, retry_count, status |
+| `positions` | position_id, order_id, entry, lot, sl_initial/current, r_state |
+| `trades` | trade_id, position_id, close_lot, price, pnl, reason |
+
+**Чухал constraint:**  
+`setup_events` дээр setup бүрт **зөвхөн нэг** терминал event (`TRIGGERED` / `EXPIRED` / `CANCELLED`) — partial unique index-ээр.
+
+---
+
+## 🦀 Rust Crates (v0.6.1)
+
+**MSRV:** 1.78.0 | **Registry:** crates.io | **Lockfile:** committed
+
+### Core
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| serde | 1.0.219 | Serialization (derive) |
+| serde_json | 1.0.140 | JSON I/O |
+| toml | 0.8.22 | `araatan.toml` |
+| figment | 0.10.19 | Layered config |
+| chrono | 0.4.41 | UTC timestamps |
+| thiserror | 1.0.69 | Error enums |
+| anyhow | 1.0.98 | Application errors |
+| uuid | 1.11.0 | setup_id, decision_id |
+| async-trait | 0.1.88 | Async traits |
+| once_cell | 1.21.0 | Static Lazy |
+
+### Async & Concurrency
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| tokio | **1.53.1** | Async runtime |
+| tokio-util | 0.7.16 | Helpers |
+| parking_lot | **0.12.5** | Mutex/RwLock |
+| dashmap | **6.2.1** | Concurrent HashMaps |
+| crossbeam | 0.8.4 | Channels (bar feed) |
+| rayon | **1.11.0** | Parallel feature compute |
+
+### ML & Tensor (zsfm backend)
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| candle-core | **0.11.0** | Tensor ops (CUDA/Metal) |
+| candle-nn | **0.11.0** | NN layers |
+| candle-transformers | **0.11.0** | Transformer blocks |
+| ndarray | **0.17.2** | Feature matrices |
+
+### CLI & Logging
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| clap | **4.6.7** | CLI (live/backtest/replay/convert/check) |
+| tracing | **0.1.41** | Structured logging |
+| tracing-subscriber | 0.3.19 | Subscriber (env-filter, json) |
+
+### Money & Metrics
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| rust_decimal | **1.41.0** | Price, lot, PnL |
+| metrics | **0.24.6** | Metrics facade |
+| metrics-exporter-prometheus | 0.17.0 | Prometheus |
+
+### Storage
+
+| Crate | Хувилбар | Үүрэг |
+|---|---|---|
+| sqlx | **0.8.6** | L7 storage (SQLite) |
+
+> ⚠️ **sqlx 0.9** нь Rust 1.94 MSRV шаарддаг тул MSRV 1.78-тай нийцэхгүй — 0.8.6 дээр үлдэв.
+
+### zsfm-rs (git dependency)
+
+```toml
+zsfm-core       = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-core" }
+zsfm-checkpoint = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-checkpoint" }
+zsfm-nn         = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-nn" }
+zsfm-chronos    = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-chronos" }
+zsfm-toto       = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-toto" }
+zsfm-tabicl     = { git = "https://github.com/Amraa0909/zsfm-rs", package = "zsfm-tabicl" }
+```
+
+---
+
+## ⏱ Timing (M5)
+
+| Параметр | Утга | Тайлбар |
+|---|---|---|
+| Bar | 300,000 ms | M5 |
+| Bars/day | 288 | |
+| Warmup span | 50 цаг (600 бар) | ~2 арилжааны өдөр |
+| Warmup (batch) | 240 s (400 ms/bar) | Q8 batch |
+| **Live inference** | **600 ms/bar** | **0.20% of bar** |
+| ├─ Chronos | 250 ms | |
+| ├─ Toto | 200 ms | |
+| ├─ TabICL | 100 ms | |
+| └─ Buffer | 50 ms | |
+| Cooldown | 4 бар (20 мин) | |
+| Expire | 8 бар (40 мин) | |
+| Time exit | 96 бар (8 цаг) | ⚠️ 24ц хүсвэл 288 |
+| Label horizon | 10 бар (50 мин) | |
+| Lag | 20 бар (100 мин) | |
+| Refit | 50 бар (250 мин) | |
+
+> ⚠️ **CUDA/Metal** дээр ~2–3× хурдан (200–300 ms/bar).
+
+---
+
+## ⚙️ Тохиргооны жишээ (`araatan.toml`)
+
+```toml
+[system]
+name = "ARAATAN"
+version = "0.6.1"
+symbols = ["XAUUSD", "USDJPY"]
+timeframe = "M5"
+
+[input.warmup]
+copy_bars = 600
+
+[models.device]
+default = "auto"  # cpu | cuda | metal
+
+[models.chronos]
+gguf_path = "models/chronos-2-Q8_0.gguf"
+quant = "Q8_0"
+n_ctx = 512
+threads = 8
+
+[models.toto]
+gguf_path = "models/toto-2-Q8_0.gguf"
+quant = "Q8_0"
+n_ctx = 96
+threads = 8
+
+[models.tabicl]
+gguf_path = "models/tabicl-Q8_0.gguf"
+quant = "Q8_0"
+n_ctx = 512
+threads = 8
+support_set_per_symbol = 300
+
+[risk]
+risk_pct = 0.01
+max_loss = 0.01
+daily_dd_limit = 0.05
+weekly_dd_limit = 0.10
+
+[execution]
+max_slippage = 2.0
+retry_count = 3
+retry_interval_ms = 500
+
+[storage]
+backend = "sqlite"
+path = "data/araatan.db"
+
+[telemetry]
+log_level = "info"
+prometheus_bind = "0.0.0.0:9090"
+```
+
+---
+
+## 🚀 CLI
+
+```bash
+# Model conversion (HF → GGUF Q8_0)
+araatan convert --model chronos-2 --quant Q8_0 --out models/chronos-2-Q8_0.gguf
+
+# GGUF metadata
+araatan gguf-info --model models/tabicl-Q8_0.gguf
+# → arch=tabicl, ctx_train=512, quant=Q8_0, tensors=…
+
+# Health check
+araatan check --config araatan.toml
+
+# Backtest (M5 bars)
+araatan backtest --config araatan.toml --from 2025-01-01 --to 2025-06-30 --data-dir data/raw
+
+# Live
+araatan live --config araatan.toml --mode demo
+
+# Audit replay
+araatan replay --config araatan.toml --audit-log data/audit/2025-06.jsonl
+```
+
+---
+
+## 📦 Workspace бүтэц
+
+```
+araatan/
+├── Cargo.toml                    # workspace root
+├── araatan.toml                  # runtime config
+├── models/
+│   ├── chronos-2-Q8_0.gguf
+│   ├── toto-2-Q8_0.gguf
+│   ├── tabicl-Q8_0.gguf
+│   ├── manifest.json
+│   └── SHA256SUMS
+├── data/
+│   ├── raw/ enriched/ support/
+│   ├── audit/ reports/
+│   └── araatan.db
+└── crates/
+    ├── araatan-core/             # types, traits, config
+    ├── araatan-features/         # L1, L1_5, L1_6, L1_7a
+    ├── araatan-models/           # zsfm-* adapters
+    ├── araatan-fusion/           # L3, L4, L4_6
+    ├── araatan-strategy/         # L4_5, L4_7
+    ├── araatan-execution/        # L5, L6
+    ├── araatan-storage/          # L7
+    └── araatan-app/              # binary
+```
+
+---
+
+## ✅ Verification & CI
+
+### Verification
+
+| Тест | Тайлбар |
+|---|---|
+| **bit_exact** | zsfm output vs PyTorch reference, tolerance ≤ 1e-5 |
+| **gguf_smoke** | Load each Q8_0 GGUF, run 1 inference, assert shape |
+| **checksum_verify_on_start** | SHA256SUMS + manifest.json |
+| **golden features** | Deterministic (seeded) feature outputs |
+
+### CI workflows
+
+```yaml
+- cargo fmt --check
+- cargo clippy --workspace -- -D warnings
+- cargo test --workspace
+- cargo build --release --features cuda
+- cargo build --release --features metal
+- cargo deny check
+- cargo audit
+- bit_exact test
+- gguf_smoke test
+```
+
+### Supply chain
+
+- `cargo-deny` ≥ 0.16 — yanked/unmaintained deny, duplicate warn
+- `cargo-audit` ≥ 0.20
+- `Cargo.lock` committed
+
+---
+
+## 🧪 Backtest vs Live
+
+| Параметр | Live | Backtest |
+|---|---|---|
+| Inference | 600 ms/bar | Same pipeline |
+| Warmup | 600 бар (batch 240 s) | Бүрэн түүх |
+| Модель | Q8_0 GGUF | Same |
+| Audit | `audit_log` | `audit_log` |
+
+---
+
+## 📦 Гаралтын артефактууд
+
+- `report` — гүйцэтгэлийн тайлан
+- `equity_curve` — equity муруй
+- `audit_log` — бүрэн шийдвэрийн бүртгэл
+
+**UI панелууд:** `setup_card`, `trigger_log`, `portfolio_panel`, `audit_view`
+
+---
+
+## 🔑 Гол дизайны зарчмууд
+
+1. **Multi-model fusion** — Chronos-2 + Toto-2 + TabICL v2
+2. **Bit-exact GGUF Q8_0** — zsfm-rs, ~1e-6 алдаа
+3. **Regime awareness** — volatility + trend + session context
+4. **Adaptive parameters** — volatility-аас хамаарсан dynamic thresholds
+5. **Correlation guard** — XAUUSD ↔ USDJPY хамаарал хяналт
+6. **Cold-start-safe** — 3 үе шаттай blending, size_multiplier
+7. **Full auditability** — шийдвэр бүр `support_hash`, `feature_version`, `seed`-тэй
+8. **Advisory separation** — L4_6 зөвхөн тайлбар
+9. **Fail-safe execution** — retry, slippage cap, margin buffer, kill switch
+10. **No Python/PyTorch/ONNX** — зөвхөн Rust + GGUF + candle
+
+---
+
+## ⚠️ Анхааруулга
+
+Production-д ашиглахын өмнө:
+
+- **Walk-forward backtest** хийх (M5-д 600 бар warmup хангалттай эсэхийг шалгах)
+- **Slippage / spread** бодит нөхцөлд шалгах
+- **Broker-ийн `stop_level`, `freeze_level`**-тэй нийцэх
+- **Kill switch, DD limits**-ийг брокерийн дүрэмтэй тулгах
+- **Q8_0 размер** (~860 MB) — Docker image-д volume болгох
+- **`time_exit_bars=96`** нь M5-д 8 цаг — бизнес логикт тохирох эсэхийг шийдэх
+- **zsfm-rs upstream**-тай синк хийж, `bit_exact` тестээр хянах
+
+---
+
+*Document version: matching ARAATAN v0.6.1 — 2025*
