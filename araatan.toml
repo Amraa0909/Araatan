@@ -33,3 +33,7 @@ max_slippage = 3.0
 
 [storage]
 database_url = "sqlite://araatan.db"
+
+[cache]
+# Custom cache directory path
+cache_dir = "./.araatan_cache"

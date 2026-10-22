@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub risk: RiskConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,6 +122,19 @@ impl Default for StorageConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheConfig {
+    pub cache_dir: String,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            cache_dir: "./.araatan_cache".to_string(),
+        }
+    }
+}
+
 impl AppConfig {
     /// Loads configuration from araatan.toml or returns default
     pub fn load() -> Result<Self> {
@@ -148,6 +163,7 @@ impl AppConfig {
                 tickerall: TickerallSettings::default(),
                 risk: RiskConfig::default(),
                 storage: StorageConfig::default(),
+                cache: CacheConfig::default(),
             })
         }
     }
