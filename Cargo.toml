@@ -14,7 +14,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "0.8"
-zsfm_core = { path = "../zsfm-rs/crates/zsfm_core", features = ["chronos", "toto"] }
+zsfm-core = { path = "../zsfm-rs/crates/zsfm-core", features = ["chronos", "toto"] }
 
 [lib]
 name = "araatan"
