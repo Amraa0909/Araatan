@@ -15,7 +15,7 @@ Araatan is an "Adaptive Risk-Aware Algorithmic Trading System". It fetches marke
 
 ## 🏛️ 3. Current Architecture Rules
 - **Android-First**: The final goal is an Android APK (using Tauri or Dioxus). Therefore, **DO NOT use external CLI binaries** (e.g., spawning `zsfm` via `Command::new`). All model inference MUST be in-process.
-- **Library Structure**:
+- **Library Structure**: 
   - `src/main.rs`: Thin CLI wrapper. Only parses args and calls `src/lib.rs`.
   - `src/lib.rs`: Core library. Currently contains function stubs (`check_health`, `cmd_fetch`, etc.) that need actual implementation.
   - `src/config.rs`: Configuration (`araatan.toml`).
