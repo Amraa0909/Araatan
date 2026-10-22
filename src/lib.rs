@@ -1,9 +1,11 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
+use forecast::ForecastEngine;
 
 pub mod config;
 pub mod tickerall;
+pub mod forecast;
 
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
@@ -93,6 +95,43 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Run forecast
+pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, horizon: usize) -> anyhow::Result<()> {
+    // Load forecast engine
+    let mut engine = ForecastEngine::new(model_path)?;
+
+    // Fetch historical data
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let client = TickerallClient::new(tickerall_config);
+    let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, 24).await?;
+
+    // Prepare input data (OHLC)
+    let mut input: Vec<Vec<f32>> = bars.iter().map(|bar| vec![
+        bar.open as f32,
+        bar.high as f32,
+        bar.low as f32,
+        bar.close as f32,
+    ]).collect();
+
+    // Make prediction
+    let forecast = engine.predict_multivariate(&input, horizon)?;
+
+    // Post-process OHLC
+    engine.post_process_ohlc(&mut input);
+
+    // Print results
+    tracing::info!("Forecast for {} (horizon: {}):", symbol, horizon);
+    for (i, bar) in forecast.iter().enumerate() {
+        tracing::info!(
+            "Bar {}: Open={:.5}, High={:.5}, Low={:.5}, Close={:.5}",
+            i + 1,
+            bar[0], bar[1], bar[2], bar[3]
+        );
+    }
+
+    Ok(())
+}
+
 /// Print help message
 pub fn print_help() {
     println!(
@@ -106,6 +145,7 @@ Commands:
   warmup      Warmup market data
   session     Start a broker session
   live        Run live trading
+  forecast    Run forecast using GGUF model
   backtest    Run backtest
   convert     Convert GGUF model
   gguf-info   Show GGUF model info
