@@ -6,3 +6,6 @@ araatan.toml
 *.log
 .DS_Store
 .aider*
+.vscode/
+.idea/
+*.swp
