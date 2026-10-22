@@ -14,3 +14,11 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "0.8"
+
+[lib]
+name = "araatan"
+path = "src/lib.rs"
+
+[[bin]]
+name = "araatan"
+path = "src/main.rs"
