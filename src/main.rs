@@ -1,7 +1,7 @@
 //! ARAATAN v0.6.1 — CLI Entry Point
 use std::env;
 use anyhow::Result;
-use araatan::{self, AppConfig};
+use araatan::self;
 
 #[tokio::main]
 async fn main() -> Result<()> {
