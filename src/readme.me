@@ -465,6 +465,17 @@ version = "0.6.1"
 symbols = ["XAUUSD", "USDJPY"]
 timeframe = "M5"
 
+[tickerall]
+# TickerAll API Market Data Feed (https://tickerall.com)
+base_url = "https://api.tickerall.com"
+api_key = "cf_api_..."             # Эсвэл $TICKERALL_API_KEY
+account_id = "acc_..."            # Эсвэл $TICKERALL_ACCOUNT_ID
+broker = "mt5"
+server = "Broker-Server"
+account = 12345678
+password = "BrokerPassword"
+warmup_bars = 600                 # 600 bars = 50 цаг (M5)
+
 [input.warmup]
 copy_bars = 600
 
@@ -515,24 +526,29 @@ prometheus_bind = "0.0.0.0:9090"
 ## 🚀 CLI
 
 ```bash
+# TickerAll-аас лааны өгөгдөл татах (Default: XAUUSD, 24 цаг)
+araatan fetch XAUUSD 24
+
+# Моделийн Warmup буфер бэлтгэх (600 M5 бар = 50 цаг)
+araatan warmup XAUUSD 600
+
+# TickerAll MT5 брокер холболт үүсгэх
+araatan session
+
+# Health check (Тохиргоо, GGUF, TickerAll API шалгах)
+araatan check
+
 # Model conversion (HF → GGUF Q8_0)
 araatan convert --model chronos-2 --quant Q8_0 --out models/chronos-2-Q8_0.gguf
 
 # GGUF metadata
 araatan gguf-info --model models/tabicl-Q8_0.gguf
-# → arch=tabicl, ctx_train=512, quant=Q8_0, tensors=…
-
-# Health check
-araatan check --config araatan.toml
 
 # Backtest (M5 bars)
-araatan backtest --config araatan.toml --from 2025-01-01 --to 2025-06-30 --data-dir data/raw
+araatan backtest --from 2025-01-01 --to 2025-06-30
 
-# Live
-araatan live --config araatan.toml --mode demo
-
-# Audit replay
-araatan replay --config araatan.toml --audit-log data/audit/2025-06.jsonl
+# Live inference runner
+araatan live
 ```
 
 ---
