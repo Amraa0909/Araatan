@@ -1,5 +1,6 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
+use tickerall::TickerallClient;
 
 pub mod config;
 pub mod tickerall;
@@ -9,7 +10,9 @@ pub const VERSION: &str = "0.6.1";
 
 /// Initialize logging
 pub fn init_logging() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 }
 
 /// Loads configuration from araatan.toml or returns default
@@ -19,35 +22,74 @@ pub fn load_config() -> AppConfig {
 
 /// Check health of the system
 pub async fn check_health(_cfg: &AppConfig) {
-    // Implement health check logic here
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let client = TickerallClient::new(tickerall_config);
+
+    if client.has_api_key() && client.has_account_id() {
+        tracing::info!("TickerAll client initialized with API key and account ID");
+    } else if client.has_api_key() {
+        tracing::info!("TickerAll client initialized with API key (no account ID)");
+    } else {
+        tracing::info!("TickerAll client initialized (no API key or account ID)");
+    }
+
     tracing::info!("Health check passed");
 }
 
 /// Fetch market data
 pub async fn cmd_fetch(_cfg: &AppConfig, symbol: &str, hours: u32) -> anyhow::Result<()> {
-    // Implement fetch logic here
-    tracing::info!("Fetching {} data for {} hours", symbol, hours);
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let client = TickerallClient::new(tickerall_config);
+
+    let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, hours).await?;
+
+    tracing::info!(
+        "Fetched {} bars for {} in the last {} hours",
+        bars.len(),
+        symbol,
+        hours
+    );
+
     Ok(())
 }
 
 /// Warmup market data
 pub async fn cmd_warmup(_cfg: &AppConfig, symbol: &str, target_bars: usize) -> anyhow::Result<()> {
-    // Implement warmup logic here
-    tracing::info!("Warming up {} data with {} bars", symbol, target_bars);
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let client = TickerallClient::new(tickerall_config);
+
+    let bars = client.fetch_warmup_bars(symbol, target_bars).await?;
+
+    tracing::info!(
+        "Warmup complete: {} bars for {} (target: {})",
+        bars.len(),
+        symbol,
+        target_bars
+    );
+
     Ok(())
 }
 
 /// Start a broker session
 pub async fn cmd_start_session(_cfg: &AppConfig) -> anyhow::Result<()> {
-    // Implement session start logic here
-    tracing::info!("Starting broker session");
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let mut client = TickerallClient::new(tickerall_config);
+
+    let broker = _cfg.tickerall.broker.as_deref().unwrap_or("mt5");
+    let server = _cfg.tickerall.server.as_deref().unwrap_or("Demo");
+    let account = _cfg.tickerall.account.unwrap_or(123456);
+    let password = _cfg.tickerall.password.as_deref().unwrap_or("password");
+
+    let account_id = client.start_session(broker, server, account, password).await?;
+
+    tracing::info!("Broker session started with account ID: {}", account_id);
+
     Ok(())
 }
 
 /// Run live trading
 pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
-    // Implement live trading logic here
-    tracing::info!("Running live trading");
+    tracing::info!("Live trading not yet implemented");
     Ok(())
 }
 
