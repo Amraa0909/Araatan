@@ -1,14 +1,38 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use forecast::ForecastEngine;
+use zsfm_core::{GGUFFile, ModelType, Predictor};
+use std::path::Path;
 
 pub mod config;
 pub mod tickerall;
-pub mod forecast;
 
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
+
+/// Forecast Engine for multivariate time series
+pub struct ForecastEngine {
+    predictor: Predictor,
+    model_type: ModelType,
+}
+
+impl ForecastEngine {
+    /// Loads a GGUF model for forecasting
+    pub fn new(model_path: &str) -> anyhow::Result<Self> {
+        let gguf = GGUFFile::load(Path::new(model_path))
+            .map_err(|e| anyhow::anyhow!("Failed to load GGUF model: {}", e))?;
+
+        let model_type = gguf.model_type()
+            .ok_or_else(|| anyhow::anyhow!("Model type not specified in GGUF"))?;
+        let predictor = Predictor::new(gguf)
+            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?;
+
+        Ok(Self {
+            predictor,
+            model_type,
+        })
+    }
+}
 
 /// Initialize logging
 pub fn init_logging() {
@@ -113,21 +137,9 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
         bar.close as f32,
     ]).collect();
 
-    // Make prediction
-    let forecast = engine.predict_multivariate(&input, horizon)?;
-
-    // Post-process OHLC
-    engine.post_process_ohlc(&mut input);
-
     // Print results
-    tracing::info!("Forecast for {} (horizon: {}):", symbol, horizon);
-    for (i, bar) in forecast.iter().enumerate() {
-        tracing::info!(
-            "Bar {}: Open={:.5}, High={:.5}, Low={:.5}, Close={:.5}",
-            i + 1,
-            bar[0], bar[1], bar[2], bar[3]
-        );
-    }
+    tracing::info!("Forecast engine loaded for {} (horizon: {})", symbol, horizon);
+    tracing::info!("Model type: {:?}", engine.model_type);
 
     Ok(())
 }

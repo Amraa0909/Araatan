@@ -15,6 +15,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "0.8"
 zsfm = { path = "../zsfm-rs/crates/zsfm" }
+zsfm_core = { path = "../zsfm-rs/crates/zsfm_core", features = ["chronos", "toto"] }
 
 [lib]
 name = "araatan"
