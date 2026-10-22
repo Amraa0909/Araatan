@@ -6,6 +6,7 @@ use std::path::Path;
 
 pub mod config;
 pub mod tickerall;
+pub mod forecast;
 
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
