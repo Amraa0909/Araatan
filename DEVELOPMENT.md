@@ -19,3 +19,10 @@ Always use the following environment variables when running Cargo:
 ## 4. Next Steps (TODO)
 - Implement the real TickerAll API logic inside `src/lib.rs` (replacing the stubs).
 - Prepare the project for an Android UI (using Tauri or Dioxus).
+
+## 5. Android App Architecture & Model Integration
+- **Target:** Android APK (using Tauri or Dioxus).
+- **Model Execution:** All model inference (Chronos-2 and Toto-2) must be done in-process using the `zsfm_core` Rust library. We cannot spawn external CLI processes.
+- **Dependencies:** `zsfm_core` must be added as a path dependency in `Cargo.toml`.
+- **Models:** GGUF files will be bundled as Android assets or downloaded to internal storage, then memory-mapped for zero-copy loading.
+- **Multivariate:** Both models will receive 2D arrays `[variate][time]` and return forecasts. OHLC post-processing MUST be applied to fix impossible High/Low values.
