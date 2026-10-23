@@ -1,8 +1,7 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use zsfm_core::Forecaster;
-use zsfm_chronos::BurnChronosModel;
+use zsfm_chronos::{BurnChronosModel, InferConfig};
 use std::path::Path;
 
 pub mod config;
@@ -22,7 +21,12 @@ impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
         let model_type = "Chronos".to_string();
-        let predictor = BurnChronosModel::load(Path::new(model_path), Default::default())?;
+        let config = InferConfig {
+            max_context: 512,
+            quantiles: vec![0.1, 0.5, 0.9],
+            ..Default::default()
+        };
+        let predictor = BurnChronosModel::load(Path::new(model_path), config)?;
 
         Ok(Self {
             predictor,
