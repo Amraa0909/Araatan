@@ -9158,6 +9158,7 @@ dependencies = [
 [[package]]
 name = "zsfm-burn"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "burn",
@@ -9168,6 +9169,7 @@ dependencies = [
 [[package]]
 name = "zsfm-checkpoint"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "half",
@@ -9182,6 +9184,7 @@ dependencies = [
 [[package]]
 name = "zsfm-chronos"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "burn",
@@ -9199,6 +9202,7 @@ dependencies = [
 [[package]]
 name = "zsfm-core"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "serde",
@@ -9209,6 +9213,7 @@ dependencies = [
 [[package]]
 name = "zsfm-gguf"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -9217,6 +9222,7 @@ dependencies = [
 [[package]]
 name = "zsfm-hub"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9236,6 +9242,7 @@ dependencies = [
 [[package]]
 name = "zsfm-toto"
 version = "0.3.1"
+source = "git+https://github.com/Amraa0909/zsfm-rs?rev=b161e3d#b161e3d71ab89fe474627dd42f06b5646412011b"
 dependencies = [
  "anyhow",
  "burn",
