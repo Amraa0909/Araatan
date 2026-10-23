@@ -1,6 +1,7 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
+use anyhow::Context;
 
 pub mod config;
 pub mod tickerall;
@@ -102,7 +103,7 @@ pub async fn cmd_symbols(_cfg: &AppConfig) -> anyhow::Result<()> {
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
     let client = TickerallClient::new(tickerall_config);
 
-    let account_id = _cfg.tickerall.account_id.as_deref().context("Account ID is required to fetch symbols")?;
+    let account_id = _cfg.tickerall.account_id.as_deref().with_context(|| "Account ID is required to fetch symbols")?;
     let symbols = client.fetch_symbols(account_id).await?;
 
     tracing::info!("Available symbols for account {}:", account_id);
