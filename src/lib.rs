@@ -105,12 +105,13 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
     let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, 24).await?;
 
     // Prepare input data (OHLC)
-    let input: Vec<Vec<f64>> = bars.iter().map(|bar| vec![
-        bar.open,
-        bar.high,
-        bar.low,
-        bar.close,
-    ]).collect();
+    let mut input: Vec<Vec<f64>> = vec![Vec::new(); 4]; // 4 variates: Open, High, Low, Close
+    for bar in bars.iter() {
+        input[0].push(bar.open);
+        input[1].push(bar.high);
+        input[2].push(bar.low);
+        input[3].push(bar.close);
+    }
 
     // Run forecast
     let forecast = engine.predict_multivariate(&input, horizon)?;
