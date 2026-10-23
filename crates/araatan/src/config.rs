@@ -1,8 +1,8 @@
-use std::fs;
-use std::path::Path;
+use crate::tickerall::TickerallConfig;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use crate::tickerall::TickerallConfig;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -89,8 +89,14 @@ impl Default for TickerallSettings {
 impl TickerallSettings {
     pub fn to_tickerall_config(&self) -> TickerallConfig {
         TickerallConfig {
-            api_key: self.api_key.clone().or_else(|| std::env::var("TICKERALL_API_KEY").ok()),
-            account_id: self.account_id.clone().or_else(|| std::env::var("TICKERALL_ACCOUNT_ID").ok()),
+            api_key: self
+                .api_key
+                .clone()
+                .or_else(|| std::env::var("TICKERALL_API_KEY").ok()),
+            account_id: self
+                .account_id
+                .clone()
+                .or_else(|| std::env::var("TICKERALL_ACCOUNT_ID").ok()),
             base_url: if self.base_url.is_empty() {
                 default_base_url()
             } else {

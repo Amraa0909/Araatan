@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 use anyhow::Result;
 use std::path::Path;
 use zsfm_chronos::{BurnChronosModel, Chronos2Config, InferConfig as ChronosInferConfig};
@@ -22,10 +23,8 @@ impl ForecastEngine {
             }
         }"#;
         let c2 = Chronos2Config::from_json(c2_json)?;
-        let chronos = BurnChronosModel::load(
-            Path::new(chronos_path),
-            ChronosInferConfig::from(&c2),
-        )?;
+        let chronos =
+            BurnChronosModel::load(Path::new(chronos_path), ChronosInferConfig::from(&c2))?;
 
         // 2. Toto-2 ачаалах — InferConfig::default() нь upstream
         //    Datadog/Toto-2.0 config.json-той тохирно
@@ -59,10 +58,7 @@ impl ForecastEngine {
             .iter()
             .map(|v| v.iter().map(|&x| x as f32).collect())
             .collect();
-        let mask: Vec<Vec<bool>> = context
-            .iter()
-            .map(|v| vec![true; v.len()])
-            .collect();
+        let mask: Vec<Vec<bool>> = context.iter().map(|v| vec![true; v.len()]).collect();
         // toto_raw: [n_quantiles=9][n_var][horizon]
         let toto_raw = self.toto.forecast(&ctx_f32, &mask, horizon)?;
         let median_q = 4; // 9 quantile-ийн дунд (0.5)

@@ -1,0 +1,20 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Pre-commit: зөвхөн формат + lint шалгана. Push хийдэггүй.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+export CARGO_TARGET_DIR=./target
+export CARGO_HOME=./.cargo_home
+
+if ! cargo fmt --all -- --check >/dev/null 2>&1; then
+    echo "❌ cargo fmt FAIL — формат зөв болгоно уу:"
+    echo "   ./scripts/dev.sh fmt --all"
+    exit 1
+fi
+
+if ! cargo clippy --workspace --all-targets -- -D warnings >/dev/null 2>&1; then
+    echo "❌ cargo clippy FAIL — warning-уудыг засна уу:"
+    echo "   ./scripts/dev.sh clippy --workspace --all-targets"
+    exit 1
+fi
+
+echo "✅ pre-commit: fmt + clippy PASS"

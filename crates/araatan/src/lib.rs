@@ -1,11 +1,10 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use anyhow::Context;
 
 pub mod config;
-pub mod tickerall;
 pub mod forecast;
+pub mod tickerall;
 
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
@@ -17,11 +16,21 @@ pub fn init_logging() {
         .init();
 }
 
-/// Loads configuration from araatan.toml or returns default
+/// Loads configuration from araatan.toml, or returns default on error
+pub fn load_config() -> AppConfig {
+    match config::AppConfig::load() {
+        Ok(c) => {
+            tracing::info!("Config loaded successfully");
+            c
+        }
+        Err(e) => {
+            tracing::warn!("Failed to parse araatan.toml: {}", e);
+            AppConfig::default()
+        }
+    }
+}
 
-
-
-
+/// List available symbols
 pub async fn cmd_symbols(cfg: &AppConfig) -> anyhow::Result<()> {
     let tickerall_config = cfg.tickerall.to_tickerall_config();
     let mut client = TickerallClient::new(tickerall_config);
@@ -33,31 +42,20 @@ pub async fn cmd_symbols(cfg: &AppConfig) -> anyhow::Result<()> {
     let password = cfg.tickerall.password.as_deref().unwrap_or("");
 
     tracing::info!("Connecting to broker to get a hot session...");
-    let account_id = client.start_session(broker, server, account, password).await?;
+    let account_id = client
+        .start_session(broker, server, account, password)
+        .await?;
     tracing::info!("Session active. Account ID: {}", account_id);
 
     // 2. Session амьд байхад нь симболуудыг татах
     let symbols = client.fetch_symbols(&account_id).await?;
-    
+
     println!("--- AVAILABLE SYMBOLS ({}) ---", symbols.len());
     for (i, sym) in symbols.iter().enumerate() {
         println!("{}: {}", i + 1, sym);
     }
-    
-    Ok(())
-}
 
-pub fn load_config() -> AppConfig {
-    match config::AppConfig::load() {
-        Ok(c) => {
-            println!("DEBUG: Config loaded successfully. api_key is: {:?}", c.tickerall.api_key);
-            c
-        }
-        Err(e) => {
-            println!("DEBUG: Failed to parse araatan.toml: {}", e);
-            AppConfig::default()
-        }
-    }
+    Ok(())
 }
 
 /// Check health of the system
@@ -81,7 +79,9 @@ pub async fn cmd_fetch(_cfg: &AppConfig, symbol: &str, hours: u32) -> anyhow::Re
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
     let client = TickerallClient::new(tickerall_config);
 
-    let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, hours).await?;
+    let bars = client
+        .fetch_candles(symbol, &_cfg.system.timeframe, hours)
+        .await?;
 
     tracing::info!(
         "Fetched {} bars for {} in the last {} hours",
@@ -120,14 +120,14 @@ pub async fn cmd_start_session(_cfg: &AppConfig) -> anyhow::Result<()> {
     let account = _cfg.tickerall.account.unwrap_or(123456);
     let password = _cfg.tickerall.password.as_deref().unwrap_or("password");
 
-    let account_id = client.start_session(broker, server, account, password).await?;
+    let account_id = client
+        .start_session(broker, server, account, password)
+        .await?;
 
     tracing::info!("Broker session started with account ID: {}", account_id);
 
     Ok(())
 }
-
-/// List available symbols
 
 /// Run live trading
 pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
@@ -136,14 +136,21 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
 }
 
 /// Run forecast
-pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, horizon: usize) -> anyhow::Result<()> {
+pub async fn cmd_forecast(
+    _cfg: &AppConfig,
+    symbol: &str,
+    model_path: &str,
+    horizon: usize,
+) -> anyhow::Result<()> {
     // Load forecast engine
     let engine = forecast::ForecastEngine::new(model_path, "toto-2-313m-q8.gguf")?;
 
     // Fetch historical data
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
     let client = TickerallClient::new(tickerall_config);
-    let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, 24).await?;
+    let bars = client
+        .fetch_candles(symbol, &_cfg.system.timeframe, 24)
+        .await?;
 
     // Prepare input data (OHLC)
     let mut input: Vec<Vec<f64>> = vec![Vec::new(); 4]; // 4 variates: Open, High, Low, Close
@@ -159,8 +166,11 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
     tracing::info!("{}", explanation);
 
     // Print results
-    tracing::info!("Forecast engine loaded for {} (horizon: {})", symbol, horizon);
-    // tracing::info!("Model type: {:?}", engine.model_type);
+    tracing::info!(
+        "Forecast engine loaded for {} (horizon: {})",
+        symbol,
+        horizon
+    );
     tracing::info!("Forecast: {:?}", forecast);
 
     Ok(())

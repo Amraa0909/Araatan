@@ -1,7 +1,6 @@
 //! ARAATAN v0.6.1 — CLI Entry Point
-use std::env;
 use anyhow::Result;
-use araatan::self;
+use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -17,7 +16,10 @@ async fn main() -> Result<()> {
         cfg.system.symbols.join(", "),
         cfg.system.timeframe
     );
-    tracing::info!("Market Data Provider: TickerAll ({})", cfg.tickerall.base_url);
+    tracing::info!(
+        "Market Data Provider: TickerAll ({})",
+        cfg.tickerall.base_url
+    );
 
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
@@ -35,7 +37,10 @@ async fn main() -> Result<()> {
         }
         "warmup" => {
             let symbol = args.get(2).map(|s| s.as_str()).unwrap_or("XAUUSD");
-            let target_bars = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(cfg.tickerall.warmup_bars);
+            let target_bars = args
+                .get(3)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(cfg.tickerall.warmup_bars);
             araatan::cmd_warmup(&cfg, symbol, target_bars).await?;
         }
         "session" => {
