@@ -25,11 +25,16 @@ pub struct SystemConfig {
     pub version: String,
     pub symbols: Vec<String>,
     pub timeframe: String,
+    #[serde(default = "default_timeframe_ms")]
     pub timeframe_ms: u64,
 }
 
 fn default_name() -> String {
     "ARAATAN".to_string()
+}
+
+fn default_timeframe_ms() -> u64 {
+    300_000
 }
 
 impl Default for SystemConfig {
@@ -39,7 +44,7 @@ impl Default for SystemConfig {
             version: "0.6.1".to_string(),
             symbols: vec!["XAUUSD".to_string(), "USDJPY".to_string()],
             timeframe: "M5".to_string(),
-            timeframe_ms: 300_000,
+            timeframe_ms: default_timeframe_ms(),
         }
     }
 }
