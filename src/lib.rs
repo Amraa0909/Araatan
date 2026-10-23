@@ -18,6 +18,35 @@ pub fn init_logging() {
 }
 
 /// Loads configuration from araatan.toml or returns default
+
+
+
+
+pub async fn cmd_symbols(cfg: &AppConfig) -> anyhow::Result<()> {
+    let tickerall_config = cfg.tickerall.to_tickerall_config();
+    let mut client = TickerallClient::new(tickerall_config);
+
+    // 1. Эхлээд брокерт холбогдож session үүсгэх
+    let broker = cfg.tickerall.broker.as_deref().unwrap_or("mt5");
+    let server = cfg.tickerall.server.as_deref().unwrap_or("Demo");
+    let account = cfg.tickerall.account.unwrap_or(0);
+    let password = cfg.tickerall.password.as_deref().unwrap_or("");
+
+    tracing::info!("Connecting to broker to get a hot session...");
+    let account_id = client.start_session(broker, server, account, password).await?;
+    tracing::info!("Session active. Account ID: {}", account_id);
+
+    // 2. Session амьд байхад нь симболуудыг татах
+    let symbols = client.fetch_symbols(&account_id).await?;
+    
+    println!("--- AVAILABLE SYMBOLS ({}) ---", symbols.len());
+    for (i, sym) in symbols.iter().enumerate() {
+        println!("{}: {}", i + 1, sym);
+    }
+    
+    Ok(())
+}
+
 pub fn load_config() -> AppConfig {
     match config::AppConfig::load() {
         Ok(c) => {
@@ -99,28 +128,6 @@ pub async fn cmd_start_session(_cfg: &AppConfig) -> anyhow::Result<()> {
 }
 
 /// List available symbols
-pub async fn cmd_symbols(_cfg: &AppConfig) -> anyhow::Result<()> {
-    let tickerall_config = _cfg.tickerall.to_tickerall_config();
-    let client = TickerallClient::new(tickerall_config);
-
-    let account_id = _cfg.tickerall.account_id.as_deref().with_context(|| "Account ID is required to fetch symbols")?;
-    let symbols = client.fetch_symbols(account_id).await?;
-
-    tracing::info!("Available symbols for account {}:", account_id);
-    for symbol in symbols.iter().take(20) {
-        tracing::info!("{}", symbol);
-    }
-
-    // Print symbols containing "GOLD", "XAU", or "EUR" for easier identification
-    tracing::info!("Symbols containing 'GOLD', 'XAU', or 'EUR':");
-    for symbol in symbols.iter() {
-        if symbol.contains("GOLD") || symbol.contains("XAU") || symbol.contains("EUR") {
-            tracing::info!("{}", symbol);
-        }
-    }
-
-    Ok(())
-}
 
 /// Run live trading
 pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
@@ -131,7 +138,7 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
 /// Run forecast
 pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, horizon: usize) -> anyhow::Result<()> {
     // Load forecast engine
-    let engine = forecast::ForecastEngine::new(model_path)?;
+    let engine = forecast::ForecastEngine::new(model_path, "toto-2-313m-q8.gguf")?;
 
     // Fetch historical data
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
@@ -148,7 +155,8 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
     }
 
     // Run forecast
-    let forecast = engine.predict_multivariate(&input, horizon)?;
+    let (forecast, explanation) = engine.predict_ensemble(&input, horizon)?;
+    tracing::info!("{}", explanation);
 
     // Print results
     tracing::info!("Forecast engine loaded for {} (horizon: {})", symbol, horizon);
