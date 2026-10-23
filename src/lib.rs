@@ -3,6 +3,7 @@ pub use config::AppConfig;
 use tickerall::TickerallClient;
 use zsfm_core::Forecaster;
 use zsfm_chronos::BurnChronosModel;
+use std::path::Path;
 
 pub mod config;
 pub mod tickerall;
@@ -13,7 +14,7 @@ pub const VERSION: &str = "0.6.1";
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Box<dyn Forecaster>,
+    predictor: BurnChronosModel,
     model_type: String,
 }
 
@@ -21,8 +22,7 @@ impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
         let model_type = "Chronos".to_string();
-        let predictor = Box::new(BurnChronosModel::new(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?);
+        let predictor = BurnChronosModel::load(Path::new(model_path), Default::default())?;
 
         Ok(Self {
             predictor,

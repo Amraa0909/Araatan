@@ -2,10 +2,11 @@
 use anyhow::Result;
 use zsfm_core::Forecaster;
 use zsfm_chronos::BurnChronosModel;
+use std::path::Path;
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Box<dyn Forecaster>,
+    predictor: BurnChronosModel,
     model_type: String,
 }
 
@@ -13,8 +14,7 @@ impl ForecastEngine {
     /// Creates a new ForecastEngine
     pub fn new(model_path: &str) -> Result<Self> {
         let model_type = "Chronos".to_string();
-        let predictor = Box::new(BurnChronosModel::new(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?);
+        let predictor = BurnChronosModel::load(Path::new(model_path), Default::default())?;
 
         Ok(Self {
             predictor,
