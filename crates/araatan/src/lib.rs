@@ -137,7 +137,7 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
 
 /// Run forecast
 pub async fn cmd_forecast(
-    _cfg: &AppConfig,
+    cfg: &AppConfig,
     symbol: &str,
     model_path: &str,
     horizon: usize,
@@ -150,15 +150,37 @@ pub async fn cmd_forecast(
         "models/Datadog__Toto-2.0-313m/config.json",
     )?;
 
-    // Fetch historical data
-    let tickerall_config = _cfg.tickerall.to_tickerall_config();
-    let client = TickerallClient::new(tickerall_config);
+    // 1. Start broker session first (TickerAll requires hot session)
+    let tickerall_config = cfg.tickerall.to_tickerall_config();
+    let mut client = TickerallClient::new(tickerall_config);
+
+    let broker = cfg.tickerall.broker.as_deref().unwrap_or("mt5");
+    let server = cfg.tickerall.server.as_deref().unwrap_or("Demo");
+    let account = cfg.tickerall.account.unwrap_or(0);
+    let password = cfg.tickerall.password.as_deref().unwrap_or("");
+
+    tracing::info!("Connecting to broker to get a hot session...");
+    let account_id = client
+        .start_session(broker, server, account, password)
+        .await?;
+    tracing::info!("Session active. Account ID: {}", account_id);
+
+    // 2. Fetch historical data (session is hot now)
     let bars = client
-        .fetch_candles(symbol, &_cfg.system.timeframe, 24)
+        .fetch_candles(symbol, &cfg.system.timeframe, 24)
         .await?;
 
-    // Prepare input data (OHLC)
-    let mut input: Vec<Vec<f64>> = vec![Vec::new(); 4]; // 4 variates: Open, High, Low, Close
+    // 3. Context length must be multiple of lcm(16,32)=32
+    let n = bars.len();
+    let usable = (n / 32) * 32;
+    if usable < 32 {
+        anyhow::bail!("Need at least 32 bars for context, got {}", n);
+    }
+    let bars = &bars[n - usable..];
+    tracing::info!("Using {} bars (of {}) for context", usable, n);
+
+    // 4. Prepare input data (OHLC)
+    let mut input: Vec<Vec<f64>> = vec![Vec::new(); 4];
     for bar in bars.iter() {
         input[0].push(bar.open);
         input[1].push(bar.high);
@@ -166,16 +188,9 @@ pub async fn cmd_forecast(
         input[3].push(bar.close);
     }
 
-    // Run forecast
+    // 5. Run forecast
     let (forecast, explanation) = engine.predict_ensemble(&input, horizon)?;
     tracing::info!("{}", explanation);
-
-    // Print results
-    tracing::info!(
-        "Forecast engine loaded for {} (horizon: {})",
-        symbol,
-        horizon
-    );
     tracing::info!("Forecast: {:?}", forecast);
 
     Ok(())
