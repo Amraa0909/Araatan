@@ -41,6 +41,9 @@ async fn main() -> Result<()> {
         "session" => {
             araatan::cmd_start_session(&cfg).await?;
         }
+        "symbols" => {
+            araatan::cmd_symbols(&cfg).await?;
+        }
         "live" => {
             araatan::cmd_live(&cfg).await?;
         }
