@@ -40,10 +40,21 @@ impl ForecastEngine {
 
         let f32_forecast = self.predictor.forecast(&flat_context, horizon)?;
 
-        let f64_forecast = f32_forecast
+        let mut f64_forecast: Vec<Vec<f64>> = f32_forecast
             .into_iter()
             .map(|v| v.into_iter().map(|x| x as f64).collect())
             .collect();
+
+        let time_steps = f64_forecast[0].len();
+        for t in 0..time_steps {
+            let o = f64_forecast[0][t];
+            let h = f64_forecast[1][t];
+            let l = f64_forecast[2][t];
+            let c = f64_forecast[3][t];
+
+            f64_forecast[1][t] = h.max(o).max(l).max(c);
+            f64_forecast[2][t] = l.min(o).min(h).min(c);
+        }
 
         Ok(f64_forecast)
     }
