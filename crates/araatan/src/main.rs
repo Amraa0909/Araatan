@@ -54,7 +54,10 @@ async fn main() -> Result<()> {
         }
         "forecast" => {
             let symbol = args.get(2).map(|s| s.as_str()).unwrap_or("XAUUSD");
-            let model_path = args.get(3).map(|s| s.as_str()).unwrap_or("chronos-2.gguf");
+            let model_path = args
+                .get(3)
+                .map(|s| s.as_str())
+                .unwrap_or("models/chronos-2-q8.gguf");
             let horizon: usize = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(12);
             araatan::cmd_forecast(&cfg, symbol, model_path, horizon).await?;
         }

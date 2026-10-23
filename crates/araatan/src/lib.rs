@@ -143,7 +143,12 @@ pub async fn cmd_forecast(
     horizon: usize,
 ) -> anyhow::Result<()> {
     // Load forecast engine
-    let engine = forecast::ForecastEngine::new(model_path, "toto-2-313m-q8.gguf")?;
+    let engine = forecast::ForecastEngine::new(
+        model_path,
+        "models/amazon__chronos-2/config.json",
+        "models/toto-2-313m-q8.gguf",
+        "models/Datadog__Toto-2.0-313m/config.json",
+    )?;
 
     // Fetch historical data
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
