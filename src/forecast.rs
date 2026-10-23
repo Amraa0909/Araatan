@@ -33,6 +33,23 @@ impl ForecastEngine {
 
     /// Predicts multivariate time series
     pub fn predict_multivariate(&self, context: &[Vec<f64>], horizon: usize) -> Result<Vec<Vec<f64>>> {
-        self.predictor.forecast(context, horizon)
+        // Flatten the context from 2D (variate, time) to 1D array of f32
+        let mut flat_context: Vec<f32> = Vec::new();
+        for variate in context {
+            for &val in variate {
+                flat_context.push(val as f32);
+            }
+        }
+
+        // Call the underlying forecast method (which expects &[f32])
+        let f32_forecast = self.predictor.forecast(&flat_context, horizon)?;
+
+        // Convert the result back from f32 to f64
+        let f64_forecast = f32_forecast
+            .into_iter()
+            .map(|v| v.into_iter().map(|x| x as f64).collect())
+            .collect();
+
+        Ok(f64_forecast)
     }
 }
