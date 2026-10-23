@@ -1,3 +1,6 @@
 [build]
 target-dir = "target"
 incremental = false
+
+[target.aarch64-linux-android]
+rustflags = ["-C", "target-feature=+fullfp16"]
