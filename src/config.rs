@@ -1,5 +1,3 @@
-//! ARAATAN Configuration Loader
-
 use std::fs;
 use std::path::Path;
 use anyhow::{Context, Result};
@@ -22,6 +20,7 @@ pub struct AppConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemConfig {
+    #[serde(default = "default_name")]
     pub name: String,
     pub version: String,
     pub symbols: Vec<String>,
@@ -29,10 +28,14 @@ pub struct SystemConfig {
     pub timeframe_ms: u64,
 }
 
+fn default_name() -> String {
+    "ARAATAN".to_string()
+}
+
 impl Default for SystemConfig {
     fn default() -> Self {
         Self {
-            name: "ARAATAN".to_string(),
+            name: default_name(),
             version: "0.6.1".to_string(),
             symbols: vec!["XAUUSD".to_string(), "USDJPY".to_string()],
             timeframe: "M5".to_string(),
