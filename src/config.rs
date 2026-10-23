@@ -142,21 +142,13 @@ impl AppConfig {
         if path.exists() {
             let content = fs::read_to_string(path)
                 .with_context(|| format!("Failed to read {}", path.display()))?;
-            let mut cfg: AppConfig = toml::from_str(&content)
-                .with_context(|| format!("Failed to parse {}", path.display()))?;
-
-            // Environment overrides
-            if let Ok(key) = std::env::var("TICKERALL_API_KEY") {
-                if !key.trim().is_empty() {
-                    cfg.tickerall.api_key = Some(key);
+            match toml::from_str(&content) {
+                Ok(c) => Ok(c),
+                Err(e) => {
+                    println!("EXACT TOML ERROR: {}", e);
+                    anyhow::bail!("Failed to parse araatan.toml")
                 }
             }
-            if let Ok(acc) = std::env::var("TICKERALL_ACCOUNT_ID") {
-                if !acc.trim().is_empty() {
-                    cfg.tickerall.account_id = Some(acc);
-                }
-            }
-            Ok(cfg)
         } else {
             Ok(Self {
                 system: SystemConfig::default(),
