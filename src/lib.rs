@@ -1,7 +1,7 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use zsfm_chronos::{BurnChronosModel, InferConfig};
+use zsfm_chronos::{BurnChronosModel, Chronos2Config, InferConfig};
 use std::path::Path;
 
 pub mod config;
@@ -21,11 +21,8 @@ impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
         let model_type = "Chronos".to_string();
-        let config = InferConfig {
-            max_context: 512,
-            quantiles: vec![0.1, 0.5, 0.9],
-            ..Default::default()
-        };
+        let c2 = Chronos2Config::default();
+        let config = InferConfig::from(&c2);
         let predictor = BurnChronosModel::load(Path::new(model_path), config)?;
 
         Ok(Self {
@@ -131,16 +128,20 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
     let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, 24).await?;
 
     // Prepare input data (OHLC)
-    let input: Vec<Vec<f32>> = bars.iter().map(|bar| vec![
-        bar.open as f32,
-        bar.high as f32,
-        bar.low as f32,
-        bar.close as f32,
+    let input: Vec<Vec<f64>> = bars.iter().map(|bar| vec![
+        bar.open,
+        bar.high,
+        bar.low,
+        bar.close,
     ]).collect();
+
+    // Run forecast
+    let forecast = engine.predict_multivariate(&input, horizon)?;
 
     // Print results
     tracing::info!("Forecast engine loaded for {} (horizon: {})", symbol, horizon);
     tracing::info!("Model type: {:?}", engine.model_type);
+    tracing::info!("Forecast: {:?}", forecast);
 
     Ok(())
 }

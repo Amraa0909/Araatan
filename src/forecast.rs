@@ -1,6 +1,6 @@
 //! Forecasting Engine for ARAATAN using zsfm_core
 use anyhow::Result;
-use zsfm_chronos::{BurnChronosModel, InferConfig};
+use zsfm_chronos::{BurnChronosModel, Chronos2Config, InferConfig};
 use std::path::Path;
 
 /// Forecast Engine for multivariate time series
@@ -13,11 +13,8 @@ impl ForecastEngine {
     /// Creates a new ForecastEngine
     pub fn new(model_path: &str) -> Result<Self> {
         let model_type = "Chronos".to_string();
-        let config = InferConfig {
-            max_context: 512,
-            quantiles: vec![0.1, 0.5, 0.9],
-            ..Default::default()
-        };
+        let c2 = Chronos2Config::default();
+        let config = InferConfig::from(&c2);
         let predictor = BurnChronosModel::load(Path::new(model_path), config)?;
 
         Ok(Self {
