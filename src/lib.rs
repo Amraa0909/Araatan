@@ -18,7 +18,16 @@ pub fn init_logging() {
 
 /// Loads configuration from araatan.toml or returns default
 pub fn load_config() -> AppConfig {
-    config::AppConfig::load().unwrap_or_default()
+    match config::AppConfig::load() {
+        Ok(c) => {
+            println!("DEBUG: Config loaded successfully. api_key is: {:?}", c.tickerall.api_key);
+            c
+        }
+        Err(e) => {
+            println!("DEBUG: Failed to parse araatan.toml: {}", e);
+            AppConfig::default()
+        }
+    }
 }
 
 /// Check health of the system
