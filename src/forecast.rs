@@ -1,23 +1,19 @@
 //! Forecasting Engine for ARAATAN using zsfm_core
 use anyhow::{Context, Result};
-use zsfm_core::{GGUFFile, ModelType, Predictor};
+use zsfm_core::{Forecaster, QuantileMatrix};
 use zsfm_chronos::{Chronos2Config, BurnChronosModel, InferConfig};
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Predictor,
-    model_type: ModelType,
+    predictor: Forecaster,
+    model_type: String,
 }
 
 impl ForecastEngine {
     /// Creates a new ForecastEngine
     pub fn new(model_path: &str) -> Result<Self> {
-        let gguf = GGUFFile::load(model_path)
-            .with_context(|| format!("Failed to load GGUF model from {}", model_path))?;
-
-        let model_type = gguf.model_type()
-            .ok_or_else(|| anyhow::anyhow!("Model type not specified in GGUF"))?;
-        let predictor = Predictor::new(gguf)
+        let model_type = "Chronos".to_string();
+        let predictor = Forecaster::new(model_path)
             .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?;
 
         Ok(Self {

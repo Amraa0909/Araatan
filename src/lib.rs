@@ -1,7 +1,7 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use zsfm_core::{GGUFFile, ModelType, Predictor};
+use zsfm_core::{Forecaster, QuantileMatrix};
 use zsfm_chronos::Chronos2Config;
 use std::path::Path;
 
@@ -14,19 +14,15 @@ pub const VERSION: &str = "0.6.1";
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Predictor,
-    model_type: ModelType,
+    predictor: Forecaster,
+    model_type: String,
 }
 
 impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
-        let gguf = GGUFFile::load(Path::new(model_path))
-            .map_err(|e| anyhow::anyhow!("Failed to load GGUF model: {}", e))?;
-
-        let model_type = gguf.model_type()
-            .ok_or_else(|| anyhow::anyhow!("Model type not specified in GGUF"))?;
-        let predictor = Predictor::new(gguf)
+        let model_type = "Chronos".to_string();
+        let predictor = Forecaster::new(model_path)
             .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?;
 
         Ok(Self {
