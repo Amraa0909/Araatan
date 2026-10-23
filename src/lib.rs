@@ -1,9 +1,8 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use zsfm_core::{Forecaster, QuantileMatrix};
-use zsfm_chronos::Chronos2Config;
-use std::path::Path;
+use zsfm_core::Forecaster;
+use zsfm_chronos::BurnChronosModel;
 
 pub mod config;
 pub mod tickerall;
@@ -14,7 +13,7 @@ pub const VERSION: &str = "0.6.1";
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Forecaster,
+    predictor: Box<dyn Forecaster>,
     model_type: String,
 }
 
@@ -22,8 +21,8 @@ impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
         let model_type = "Chronos".to_string();
-        let predictor = Forecaster::new(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?;
+        let predictor = Box::new(BurnChronosModel::new(model_path)
+            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?);
 
         Ok(Self {
             predictor,
@@ -120,7 +119,7 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
 /// Run forecast
 pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, horizon: usize) -> anyhow::Result<()> {
     // Load forecast engine
-    let mut engine = ForecastEngine::new(model_path)?;
+    let engine = ForecastEngine::new(model_path)?;
 
     // Fetch historical data
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
@@ -128,7 +127,7 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
     let bars = client.fetch_candles(symbol, &_cfg.system.timeframe, 24).await?;
 
     // Prepare input data (OHLC)
-    let mut input: Vec<Vec<f32>> = bars.iter().map(|bar| vec![
+    let input: Vec<Vec<f32>> = bars.iter().map(|bar| vec![
         bar.open as f32,
         bar.high as f32,
         bar.low as f32,

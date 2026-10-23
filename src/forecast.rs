@@ -1,11 +1,11 @@
 //! Forecasting Engine for ARAATAN using zsfm_core
 use anyhow::Result;
-use zsfm_core::{Forecaster, QuantileMatrix};
-use zsfm_chronos::{Chronos2Config, BurnChronosModel, InferConfig};
+use zsfm_core::Forecaster;
+use zsfm_chronos::BurnChronosModel;
 
 /// Forecast Engine for multivariate time series
 pub struct ForecastEngine {
-    predictor: Forecaster,
+    predictor: Box<dyn Forecaster>,
     model_type: String,
 }
 
@@ -13,8 +13,8 @@ impl ForecastEngine {
     /// Creates a new ForecastEngine
     pub fn new(model_path: &str) -> Result<Self> {
         let model_type = "Chronos".to_string();
-        let predictor = Forecaster::new(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?;
+        let predictor = Box::new(BurnChronosModel::new(model_path)
+            .map_err(|e| anyhow::anyhow!("Failed to create predictor: {}", e))?);
 
         Ok(Self {
             predictor,
