@@ -1,5 +1,5 @@
 //! Forecasting Engine for ARAATAN using zsfm_core
-use anyhow::{Context, Result};
+use anyhow::Result;
 use zsfm_core::{Forecaster, QuantileMatrix};
 use zsfm_chronos::{Chronos2Config, BurnChronosModel, InferConfig};
 
