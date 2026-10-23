@@ -6,8 +6,6 @@ pub mod config;
 pub mod tickerall;
 pub mod forecast;
 
-pub use forecast::ForecastEngine;
-
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
 
@@ -99,7 +97,7 @@ pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
 /// Run forecast
 pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, horizon: usize) -> anyhow::Result<()> {
     // Load forecast engine
-    let engine = ForecastEngine::new(model_path)?;
+    let engine = forecast::ForecastEngine::new(model_path)?;
 
     // Fetch historical data
     let tickerall_config = _cfg.tickerall.to_tickerall_config();
