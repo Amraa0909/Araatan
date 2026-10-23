@@ -8,37 +8,10 @@ pub mod config;
 pub mod tickerall;
 pub mod forecast;
 
+pub use forecast::ForecastEngine;
+
 pub const NAME: &str = "ARAATAN";
 pub const VERSION: &str = "0.6.1";
-
-/// Forecast Engine for multivariate time series
-pub struct ForecastEngine {
-    predictor: BurnChronosModel,
-    model_type: String,
-}
-
-impl ForecastEngine {
-    /// Loads a GGUF model for forecasting
-    pub fn new(model_path: &str) -> anyhow::Result<Self> {
-        let model_type = "Chronos".to_string();
-        let c2 = Chronos2Config::from_json(r#"{
-            "d_model": 512,
-            "d_kv": 64,
-            "d_ff": 2048,
-            "num_layers": 6,
-            "num_heads": 8,
-            "max_context": 512,
-            "max_horizon": 128
-        }"#)?;
-        let config = InferConfig::from(&c2);
-        let predictor = BurnChronosModel::load(Path::new(model_path), config)?;
-
-        Ok(Self {
-            predictor,
-            model_type,
-        })
-    }
-}
 
 /// Initialize logging
 pub fn init_logging() {
