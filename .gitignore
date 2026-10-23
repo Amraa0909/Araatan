@@ -9,5 +9,9 @@ araatan.toml
 .vscode/
 .idea/
 *.swp
-chronos-2-q8.gguf
-toto-2-313m-q8.gguf
+*.gguf
+models/
+.cargo_home/
+*.db
+*.db-wal
+*.db-shm
