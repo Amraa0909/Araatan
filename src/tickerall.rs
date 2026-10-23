@@ -94,6 +94,26 @@ pub struct SessionResponse {
     pub status: Option<String>,
 }
 
+/// Symbol response payload returned by TickerAll
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SymbolResponse {
+    pub symbol: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub contract_size: Option<f64>,
+    #[serde(default)]
+    pub pip_size: Option<f64>,
+    #[serde(default)]
+    pub spread: Option<f64>,
+    #[serde(default)]
+    pub commission: Option<f64>,
+    #[serde(default)]
+    pub swap_long: Option<f64>,
+    #[serde(default)]
+    pub swap_short: Option<f64>,
+}
+
 /// Configuration for TickerAll API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TickerallConfig {
@@ -194,6 +214,47 @@ impl TickerallClient {
 
         self.config.account_id = Some(account_id.clone());
         Ok(account_id)
+    }
+
+    /// Fetch available symbols for the current account
+    pub async fn fetch_symbols(&self, account_id: &str) -> Result<Vec<String>> {
+        let api_key = self
+            .config
+            .api_key
+            .as_ref()
+            .context("TICKERALL_API_KEY is required to fetch symbols")?;
+
+        let url = format!(
+            "{}/v1/accounts/{}/symbols",
+            self.config.base_url.trim_end_matches('/'),
+            account_id
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(api_key)
+            .send()
+            .await
+            .context("Failed to send symbols request to TickerAll")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            bail!("TickerAll symbols error (status {}): {}", status, text);
+        }
+
+        let symbols_data: Vec<SymbolResponse> = resp
+            .json()
+            .await
+            .context("Failed to parse TickerAll symbols response")?;
+
+        let symbols: Vec<String> = symbols_data
+            .into_iter()
+            .map(|s| s.symbol)
+            .collect();
+
+        Ok(symbols)
     }
 
     /// Fetch historical OHLC candles

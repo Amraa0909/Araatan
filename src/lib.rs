@@ -97,6 +97,30 @@ pub async fn cmd_start_session(_cfg: &AppConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// List available symbols
+pub async fn cmd_symbols(_cfg: &AppConfig) -> anyhow::Result<()> {
+    let tickerall_config = _cfg.tickerall.to_tickerall_config();
+    let client = TickerallClient::new(tickerall_config);
+
+    let account_id = _cfg.tickerall.account_id.as_deref().context("Account ID is required to fetch symbols")?;
+    let symbols = client.fetch_symbols(account_id).await?;
+
+    tracing::info!("Available symbols for account {}:", account_id);
+    for symbol in symbols.iter().take(20) {
+        tracing::info!("{}", symbol);
+    }
+
+    // Print symbols containing "GOLD", "XAU", or "EUR" for easier identification
+    tracing::info!("Symbols containing 'GOLD', 'XAU', or 'EUR':");
+    for symbol in symbols.iter() {
+        if symbol.contains("GOLD") || symbol.contains("XAU") || symbol.contains("EUR") {
+            tracing::info!("{}", symbol);
+        }
+    }
+
+    Ok(())
+}
+
 /// Run live trading
 pub async fn cmd_live(_cfg: &AppConfig) -> anyhow::Result<()> {
     tracing::info!("Live trading not yet implemented");
@@ -145,6 +169,7 @@ Commands:
   fetch       Fetch market data
   warmup      Warmup market data
   session     Start a broker session
+  symbols     List available symbols
   live        Run live trading
   forecast    Run forecast using GGUF model
   backtest    Run backtest
