@@ -21,7 +21,15 @@ impl ForecastEngine {
     /// Loads a GGUF model for forecasting
     pub fn new(model_path: &str) -> anyhow::Result<Self> {
         let model_type = "Chronos".to_string();
-        let c2 = Chronos2Config::default();
+        let c2 = Chronos2Config::from_json(r#"{
+            "d_model": 512,
+            "d_kv": 64,
+            "d_ff": 2048,
+            "num_layers": 6,
+            "num_heads": 8,
+            "max_context": 512,
+            "max_horizon": 128
+        }"#)?;
         let config = InferConfig::from(&c2);
         let predictor = BurnChronosModel::load(Path::new(model_path), config)?;
 
