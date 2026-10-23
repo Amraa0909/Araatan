@@ -1,8 +1,6 @@
 //! ARAATAN v0.6.1 — Core Library
 pub use config::AppConfig;
 use tickerall::TickerallClient;
-use zsfm_chronos::{BurnChronosModel, Chronos2Config, InferConfig};
-use std::path::Path;
 
 pub mod config;
 pub mod tickerall;
@@ -121,7 +119,7 @@ pub async fn cmd_forecast(_cfg: &AppConfig, symbol: &str, model_path: &str, hori
 
     // Print results
     tracing::info!("Forecast engine loaded for {} (horizon: {})", symbol, horizon);
-    tracing::info!("Model type: {:?}", engine.model_type);
+    // tracing::info!("Model type: {:?}", engine.model_type);
     tracing::info!("Forecast: {:?}", forecast);
 
     Ok(())
