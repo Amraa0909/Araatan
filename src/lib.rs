@@ -2,6 +2,7 @@
 pub use config::AppConfig;
 use tickerall::TickerallClient;
 use zsfm_core::{GGUFFile, ModelType, Predictor};
+use zsfm_chronos::Chronos2Config;
 use std::path::Path;
 
 pub mod config;
