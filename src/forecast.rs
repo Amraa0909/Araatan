@@ -33,6 +33,6 @@ impl ForecastEngine {
 
     /// Predicts multivariate time series
     pub fn predict_multivariate(&self, context: &[Vec<f64>], horizon: usize) -> Result<Vec<Vec<f64>>> {
-        self.predictor.predict(context, horizon)
+        self.predictor.forecast(context, horizon)
     }
 }
