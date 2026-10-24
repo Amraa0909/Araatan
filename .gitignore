@@ -10,7 +10,10 @@ araatan.toml
 .idea/
 *.swp
 *.gguf
-models/
+models/*
+!models/amazon__chronos-2/
+!models/Datadog__Toto-2.0-313m/
+models/**/*.gguf
 .cargo_home/
 *.db
 *.db-wal
