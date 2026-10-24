@@ -15,3 +15,8 @@ models/
 *.db
 *.db-wal
 *.db-shm
+
+# Keep model configs in git, but ignore the heavy gguf files
+!models/**/config.json
+!models/**/config.size
+!models/**/model.size
